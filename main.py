@@ -1,3 +1,10 @@
+#Sonic Agent: Runs an async loop to read the sensor and sends notifications when an object is detected.
+#Camera Agent: Captures frames asynchronously and processes them for object detection.
+#Main Controller: Listens for messages from both agents and takes action when notified.
+#asyncio keeps everything in a single event loop.
+#pip install opencv-python
+#Developed using Python 3.11.9
+
 import asyncio
 import random  # Simulating sensor data
 import cv2
@@ -51,7 +58,7 @@ class CameraAgent:
 
 class MainController:
     """Main Controller listening for notifications"""
-
+    print(f"MainController Active")
     async def listen_for_notifications(self):
         while True:
             message = await message_queue.get()

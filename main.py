@@ -9,6 +9,17 @@ import asyncio
 import random  # Simulating sensor data
 import cv2
 import numpy as np
+import json
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import LaserScan
+from geometry_msgs.msg import Twist
+import pymongo
+
+# Load configuration from JSON file
+with open("config.json", "r") as config_file:
+    config = json.load(config_file)
+TURTLEBOT_NAME = config["turtlebot_name"]
 
 # Message queue for inter-agent communication
 message_queue = asyncio.Queue()
@@ -56,9 +67,56 @@ class CameraAgent:
         self.cap.release()
 
 
+class LidarAgent(Node):
+    """ROS2 Lidar Agent listening to /scan topic."""
+
+    def __init__(self):
+        super().__init__('lidar_agent')
+        self.subscription = self.create_subscription(LaserScan, '/scan', self.scan_callback, 10)
+
+    def scan_callback(self, msg):
+        min_distance = min(msg.ranges)
+        if min_distance < 0.5:  # Example threshold
+            asyncio.create_task(message_queue.put("LidarAgent: Object detected in scan"))
+
+
+class LogMessageAgent:
+    """Sends logs to a remote MongoDB server."""
+
+    def __init__(self, db_url, db_name, collection_name):
+        self.client = pymongo.MongoClient(db_url)
+        self.db = self.client[db_name]
+        self.collection = self.db[collection_name]
+
+    def log_message(self, message):
+        log_entry = {"turtlebot": TURTLEBOT_NAME, "message": message}
+        self.collection.insert_one(log_entry)
+        print(f"LogMessageAgent: Logged message - {message}")
+
+
+class MoveBotAgent(Node):
+    """ROS2 MoveBot Agent that listens for commands and publishes to /cmd_vel."""
+
+    def __init__(self):
+        super().__init__('move_bot_agent')
+        self.publisher = self.create_publisher(Twist, '/cmd_vel', 10)
+
+    def move_forward(self):
+        msg = Twist()
+        msg.linear.x = 0.2
+        self.publisher.publish(msg)
+        print("MoveBotAgent: Moving forward")
+
+    def stop(self):
+        msg = Twist()
+        msg.linear.x = 0.0
+        self.publisher.publish(msg)
+        print("MoveBotAgent: Stopping")
+
+
 class MainController:
     """Main Controller listening for notifications"""
-    print(f"MainController Active")
+
     async def listen_for_notifications(self):
         while True:
             message = await message_queue.get()
@@ -66,8 +124,13 @@ class MainController:
 
 
 async def main():
+    rclpy.init()
+
     sonic_agent = SonicAgent()
     camera_agent = CameraAgent()
+    lidar_agent = LidarAgent()
+    log_agent = LogMessageAgent("mongodb://localhost:27017/", "robot_logs", "messages")
+    move_bot_agent = MoveBotAgent()
     controller = MainController()
 
     # Run agents asynchronously
@@ -78,6 +141,11 @@ async def main():
     ]
 
     await asyncio.gather(*tasks)
+
+    rclpy.spin(lidar_agent)
+    rclpy.spin(move_bot_agent)
+
+    rclpy.shutdown()
 
 
 if __name__ == "__main__":

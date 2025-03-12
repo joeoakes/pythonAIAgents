@@ -1,0 +1,6 @@
+{
+    "turtlebot_name": "TurtleBot3",
+    "mongodb_url": "mongodb://localhost:27017/",
+    "database_name": "robot_logs",
+    "collection_name": "messages"
+}

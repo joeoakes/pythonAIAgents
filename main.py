@@ -122,7 +122,7 @@ class MoveBotAgent(Node):
 
 
 class HMACAgent:
-    """Sends a unicast message to multiple TurtleBots with HMAC authentication."""
+    """Handles sending and receiving authenticated messages using HMAC."""
 
     def send_authenticated_message(self, message):
         hmac_digest = hmac.new(SECRET_KEY, message.encode(), hashlib.sha256).hexdigest()
@@ -135,6 +135,21 @@ class HMACAgent:
                 print(f"HMACAgent: Sent message to {ip}")
             except Exception as e:
                 print(f"HMACAgent: Failed to send message to {ip}: {e}")
+
+    def receive_authenticated_message(self):
+        """Listens for authenticated messages and verifies their integrity."""
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.bind(("", 5005))
+            print("HMACAgent: Listening for messages...")
+            while True:
+                data, addr = sock.recvfrom(1024)
+                message, received_hmac = data.decode().rsplit("|", 1)
+                expected_hmac = hmac.new(SECRET_KEY, message.encode(), hashlib.sha256).hexdigest()
+
+                if hmac.compare_digest(received_hmac, expected_hmac):
+                    print(f"HMACAgent: Received valid message from {addr}: {message}")
+                else:
+                    print(f"HMACAgent: WARNING! Invalid HMAC from {addr}")
 
 
 class MainController:

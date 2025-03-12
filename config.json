@@ -1,6 +1,9 @@
 {
     "turtlebot_name": "TurtleBot3",
+    "turtlebot_ips": ["192.168.1.101", "192.168.1.102", "192.168.1.103", "192.168.1.104", "192.168.1.105"],
+    "secret_key": "my_secure_secret",
     "mongodb_url": "mongodb://localhost:27017/",
     "database_name": "robot_logs",
     "collection_name": "messages"
 }
+

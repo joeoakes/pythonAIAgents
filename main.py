@@ -32,6 +32,9 @@ TURTLEBOT_IPS = config["turtlebot_ips"]
 SECRET_KEY = config["secret_key"].encode()
 APRILTAG_IDS = config["apriltag_ids"]
 TRAFFIC_CONE_LABELS = config["traffic_cone_labels"]
+CAMERA_MATRIX = np.array(config["camera_matrix"])  # Camera Intrinsic Matrix
+DIST_COEFFS = np.array(config["dist_coeffs"])  # Distortion Coefficients
+TAG_SIZE = config["tag_size"]  # Real-world tag size in meters
 
 # Message queue for inter-agent communication
 message_queue = asyncio.Queue()
@@ -72,8 +75,29 @@ class CameraAgent:
             tags = self.detector.detect(gray)
             for tag in tags:
                 if tag.tag_id in APRILTAG_IDS:
-                    await message_queue.put(f"CameraAgent: Detected AprilTag ID {tag.tag_id}")
-                    print(f"CameraAgent: Detected AprilTag ID {tag.tag_id}")
+                    tag_center = (int(tag.center[0]), int(tag.center[1]))
+                    tag_corners = np.array(tag.corners, dtype=np.float32)
+
+                    # Pose Estimation
+                    object_points = np.array([[-TAG_SIZE / 2, TAG_SIZE / 2, 0],
+                                              [TAG_SIZE / 2, TAG_SIZE / 2, 0],
+                                              [TAG_SIZE / 2, -TAG_SIZE / 2, 0],
+                                              [-TAG_SIZE / 2, -TAG_SIZE / 2, 0]], dtype=np.float32)
+
+                    success, rvec, tvec = cv2.solvePnP(object_points, tag_corners, CAMERA_MATRIX, DIST_COEFFS)
+                    if success:
+                        distance = np.linalg.norm(tvec)
+                        rotation_matrix, _ = cv2.Rodrigues(rvec)
+                        yaw = math.degrees(math.atan2(rotation_matrix[1, 0], rotation_matrix[0, 0]))
+
+                        message = (
+                            f"CameraAgent: Detected AprilTag ID {tag.tag_id} | "
+                            f"Distance: {distance:.2f}m | "
+                            f"Yaw: {yaw:.2f}° | "
+                            f"Center: {tag_center}"
+                        )
+                        await message_queue.put(message)
+                        print(message)
 
             if yolo_model:
                 results = yolo_model(frame)
